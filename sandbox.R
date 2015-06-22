@@ -3,12 +3,12 @@ train$Made.Donation.in.March.2007 <- factor(train$Made.Donation.in.March.2007)
 str(train)
 dim(train)
 
-validation <- read.csv('testset.csv', header = TRUE, row.names = 1)
+validation <- read.csv('testset.csv', header = TRUE)
 
 summary(train)
 pairs(train)
 library(ggplot2)
-library(reshape)
+library(reshape2)
 longtrain <- melt(train, id=c('Made.Donation.in.March.2007'))
 qplot(Made.Donation.in.March.2007, value,
       geom = 'boxplot',
@@ -19,12 +19,13 @@ qplot(Made.Donation.in.March.2007, value,
 
 library(modelUtils)
 library(caret)
+set.seed(1234)
 inTrain <- createDataPartition(y=train$Made.Donation.in.March.2007, p=0.8, list=FALSE)
 training <- train[inTrain,]
 testing <- train[-inTrain,]
 tc <- trainControl(classProbs = TRUE, method = "repeatedcv",
-                   number = 2,
-                   repeats = 2)
+                   number = 3,
+                   repeats = 10)
 glmModel <- testModel(Made.Donation.in.March.2007 ~ ., as.data.frame(training),
                         as.data.frame(testing),
                         'Made.Donation.in.March.2007',
@@ -33,12 +34,12 @@ glmModel <- testModel(Made.Donation.in.March.2007 ~ ., as.data.frame(training),
 rpartModel <- testModel(Made.Donation.in.March.2007 ~ ., as.data.frame(training),
                         as.data.frame(testing),
                         'Made.Donation.in.March.2007',
-                        'rpart', trControl = tc, classProbs = TRUE)
+                        'rpart', trControl = tc)
 
 rf <- testModel(Made.Donation.in.March.2007 ~ ., training, testing,
                 'Made.Donation.in.March.2007',
                 'rf',
-                trainControl = tc)
+                trControl = tc)
 
 rpart.test <- rpart(Made.Donation.in.March.2007 ~ ., training)
 predictions <- predict(rpart.test, newdata = testing)
@@ -53,3 +54,6 @@ summary(resamp)
 bwplot(resamp)
 
 head(rpartModel$predictions)
+rpartProbs <- extractProb(list(rpartModel$fit), unkX = validation)
+rpartSubmission <- data.frame(X = validation$X, `Made Donation in March 2007` = rpartProbs$X1)
+write.table(rpartSubmission, 'rpartSubmission.csv', row.names = FALSE, col.names = c('', 'Made Donation in March 2007'), sep=',', quote = FALSE)
