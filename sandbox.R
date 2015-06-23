@@ -5,6 +5,18 @@ dim(train)
 
 validation <- read.csv('testset.csv', header = TRUE)
 
+isRVD <- function(recency, frequency, monetary, time) {
+    recency <= 6 && frequency >= 4 && monetary >= 200 && time > 24
+}
+
+train$RVD <- mapply(isRVD, train$Months.since.Last.Donation, train$Number.of.Donations, train$Total.Volume.Donated..c.c.., train$Months.since.First.Donation)
+validation$RVD <- mapply(isRVD, validation$Months.since.Last.Donation, validation$Number.of.Donations, validation$Total.Volume.Donated..c.c.., validation$Months.since.First.Donation)
+
+dummies <- dummyVars( ~ . - Made.Donation.in.March.2007, data = train)
+train <- data.frame(predict(dummies, newdata = train), Made.Donation.in.March.2007 = train$Made.Donation.in.March.2007)
+dummies <- dummyVars(X ~ ., data = validation)
+validation <- data.frame(X=validation$X, predict(dummies, newdata = validation))
+
 summary(train)
 pairs(train)
 library(ggplot2)
@@ -31,8 +43,8 @@ glmModel <- testModel(Made.Donation.in.March.2007 ~ ., as.data.frame(training),
                         'Made.Donation.in.March.2007',
                         'glm', trControl = tc)
 
-rpartModel <- testModel(Made.Donation.in.March.2007 ~ ., as.data.frame(training),
-                        as.data.frame(testing),
+rpartModel <- testModel(Made.Donation.in.March.2007 ~ ., training,
+                        testing,
                         'Made.Donation.in.March.2007',
                         'rpart', trControl = tc)
 
@@ -57,3 +69,6 @@ head(rpartModel$predictions)
 rpartProbs <- extractProb(list(rpartModel$fit), unkX = validation)
 rpartSubmission <- data.frame(X = validation$X, `Made Donation in March 2007` = rpartProbs$X1)
 write.table(rpartSubmission, 'rpartSubmission.csv', row.names = FALSE, col.names = c('', 'Made Donation in March 2007'), sep=',', quote = FALSE)
+
+library(rpart.plot)
+prp(rpartModel$fit$finalModel)
