@@ -18,6 +18,7 @@ train$Donation.Frequency <- mapply(donationFrequency, train$Number.of.Donations,
 validation$RVD <- mapply(isRVD, validation$Months.since.Last.Donation, validation$Number.of.Donations, validation$Total.Volume.Donated..c.c.., validation$Months.since.First.Donation)
 validation$Donation.Frequency <- mapply(donationFrequency, validation$Number.of.Donations, validation$Months.since.First.Donation)
 
+library(caret)
 dummies <- dummyVars( ~ . - Made.Donation.in.March.2007, data = train, fullRank = TRUE)
 train <- data.frame(predict(dummies, newdata = train), Made.Donation.in.March.2007 = train$Made.Donation.in.March.2007)
 dummies <- dummyVars(X ~ ., data = validation, fullRank = TRUE)
@@ -44,24 +45,29 @@ testing <- train[-inTrain,]
 tc <- trainControl(classProbs = TRUE, method = "repeatedcv",
                     number = 5,
                     repeats = 10)
-tc2 <- trainControl(classProbs = TRUE, method = "repeatedcv",
+tc <- trainControl(classProbs = TRUE, method = "repeatedcv",
                    number = 2,
-                   repeats = 10, summaryFunction = twoClassSummary)
+                   repeats = 10, summaryFunction = mnLogLoss)
 set.seed(1234)
 glmModel <- testModel(Made.Donation.in.March.2007 ~ ., as.data.frame(training),
                         as.data.frame(testing),
                         'Made.Donation.in.March.2007',
-                        'glm', trControl = tc, metric = "Kappa")
+                        'glm', trControl = tc)
 
 rpartModel <- testModel(Made.Donation.in.March.2007 ~ ., training,
                         testing,
                         'Made.Donation.in.March.2007',
-                        'rpart', trControl = tc, metric = "Kappa")
+                        'rpart', trControl = tc)
 
 rf <- testModel(Made.Donation.in.March.2007 ~ ., training, testing,
                 'Made.Donation.in.March.2007',
                 'rf',
-                trControl = tc, metric = "Kappa")
+                trControl = tc)
+
+gbm <- testModel(Made.Donation.in.March.2007 ~ ., training, testing,
+                'Made.Donation.in.March.2007',
+                'gbm',
+                trControl = tc)
 
 rpart.test <- rpart(Made.Donation.in.March.2007 ~ ., training)
 predictions <- predict(rpart.test, newdata = testing)
@@ -71,11 +77,19 @@ table(testing$Made.Donation.in.March.2007, predictions[,1] > 0.5)
 resamp <- resamples(
     list(GLM=glmModel$fit,
          RPART=rpartModel$fit,
-         RF=rf$fit))
+         RF=rf$fit,
+         GBM=gbm$fit))
 summary(resamp)
 bwplot(resamp)
 
 head(rpartModel$predictions)
+glmProbs <- extractProb(list(glmModel$fit), unkX = validation)
+glmSubmission <- data.frame(X = validation$X, `Made Donation in March 2007` = glmProbs$Yes)
+write.table(glmSubmission, 
+            paste0('glmSubmission', format(Sys.time(), "%Y%m%d_%H%M%S"), '.csv'),
+            row.names = FALSE,
+            col.names = c('', 'Made Donation in March 2007'), sep=',', quote = FALSE)
+
 rpartProbs <- extractProb(list(rpartModel$fit), unkX = validation)
 rpartSubmission <- data.frame(X = validation$X, `Made Donation in March 2007` = rpartProbs$Yes)
 write.table(rpartSubmission, 
@@ -87,6 +101,13 @@ rfProbs <- extractProb(list(rf$fit), unkX = validation)
 rfSubmission <- data.frame(X = validation$X, `Made Donation in March 2007` = rfProbs$Yes)
 write.table(rfSubmission, 
             paste0('rfSubmission', format(Sys.time(), "%Y%m%d_%H%M%S"), '.csv'),
+            row.names = FALSE,
+            col.names = c('', 'Made Donation in March 2007'), sep=',', quote = FALSE)
+
+gbmProbs <- extractProb(list(gbm$fit), unkX = validation)
+gbmSubmission <- data.frame(X = validation$X, `Made Donation in March 2007` = gbmProbs$Yes)
+write.table(gbmSubmission, 
+            paste0('gbmSubmission', format(Sys.time(), "%Y%m%d_%H%M%S"), '.csv'),
             row.names = FALSE,
             col.names = c('', 'Made Donation in March 2007'), sep=',', quote = FALSE)
 
