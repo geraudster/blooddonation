@@ -46,7 +46,7 @@ tc <- trainControl(classProbs = TRUE, method = "repeatedcv",
                     number = 5,
                     repeats = 10)
 tc <- trainControl(classProbs = TRUE, method = "repeatedcv",
-                   number = 2,
+                   number = 3,
                    repeats = 10, summaryFunction = mnLogLoss)
 set.seed(1234)
 glmModel <- testModel(Made.Donation.in.March.2007 ~ ., as.data.frame(training),
@@ -54,17 +54,20 @@ glmModel <- testModel(Made.Donation.in.March.2007 ~ ., as.data.frame(training),
                         'Made.Donation.in.March.2007',
                         'glm', trControl = tc)
 
-rpartModel <- testModel(Made.Donation.in.March.2007 ~ ., training,
+rpart.grid <- expand.grid(cp=c(0.01, 0.02, 0.05, 0.1))
+rpartModel <- testModel(formula = NULL, training,
                         testing,
                         'Made.Donation.in.March.2007',
-                        'rpart', trControl = tc)
+                        'rpart', trControl = tc, tuneLength = 10, tuneGrid = rpart.grid)
 
-rf <- testModel(Made.Donation.in.March.2007 ~ ., training, testing,
+rf.grid <- expand.grid(mtry = 1:6)
+rf <- testModel(formula = NULL, training, testing,
                 'Made.Donation.in.March.2007',
                 'rf',
-                trControl = tc)
+                trControl = tc,
+                tuneGrid = rf.grid)
 
-gbm <- testModel(Made.Donation.in.March.2007 ~ ., training, testing,
+gbm <- testModel(formula = NULL, training, testing,
                 'Made.Donation.in.March.2007',
                 'gbm',
                 trControl = tc)
@@ -74,11 +77,15 @@ predictions <- predict(rpart.test, newdata = testing)
 table(testing$Made.Donation.in.March.2007, predictions[,1] > 0.5)
 
 
+# list(GLM=glmModel$fit,
+#      RPART=rpartModel$fit,
+#      RF=rf$fit,
+#      GBM=gbm$fit))
+
 resamp <- resamples(
-    list(GLM=glmModel$fit,
+    list(
          RPART=rpartModel$fit,
-         RF=rf$fit,
-         GBM=gbm$fit))
+         RF=rf$fit))
 summary(resamp)
 bwplot(resamp)
 
